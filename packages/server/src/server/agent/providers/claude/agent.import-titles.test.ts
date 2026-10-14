@@ -77,6 +77,44 @@ afterEach(async () => {
 });
 
 describe("importing a renamed Claude session", () => {
+  test.each(["provider", "launch"])(
+    "reads the rename from the %s config directory used for history",
+    async (source) => {
+      const sessionId = "provider-directory-rename";
+      const providerConfigDir = path.join(configDir, "provider");
+      const projectDir = claudeProjectDirSync(SESSION_CWD, { configDir: providerConfigDir });
+      await fs.mkdir(projectDir, { recursive: true });
+      await fs.writeFile(
+        path.join(projectDir, `${sessionId}.jsonl`),
+        [
+          userRecord({ sessionId, content: "Review this project" }),
+          { type: "custom-title", customTitle: "My research session", sessionId },
+        ]
+          .map((record) => JSON.stringify(record))
+          .join("\n") + "\n",
+      );
+      const client = new ClaudeAgentClient({
+        logger: createTestLogger(),
+        runtimeSettings:
+          source === "provider" ? { env: { CLAUDE_CONFIG_DIR: providerConfigDir } } : undefined,
+        resolveBinary: async () => "/test/claude/bin",
+      });
+      const imported = await client.importSession(
+        { providerHandleId: sessionId, cwd: SESSION_CWD },
+        {
+          config: { provider: "claude", cwd: SESSION_CWD },
+          storedConfig: { provider: "claude", cwd: SESSION_CWD },
+          launchContext:
+            source === "launch" ? { env: { CLAUDE_CONFIG_DIR: providerConfigDir } } : undefined,
+        },
+      );
+      expect(imported.timeline.map((entry) => entry.item)).toContainEqual(
+        expect.objectContaining({ type: "user_message", text: "Review this project" }),
+      );
+      expect(imported.config.title).toBe("My research session");
+    },
+  );
+
   test("names the imported agent after a /rename", async () => {
     const sessionId = "renamed-session";
     await writeSession({
@@ -106,6 +144,21 @@ describe("importing a renamed Claude session", () => {
     const imported = await importSession(sessionId);
 
     expect(imported.config.title).toBe("billing rework");
+  });
+
+  test("preserves a rename when the first prompt was /model", async () => {
+    const sessionId = "model-first";
+    await writeSession({
+      sessionId,
+      records: [
+        userRecord({ sessionId, content: "/model" }),
+        { type: "custom-title", customTitle: "My research session", sessionId },
+      ],
+    });
+
+    const imported = await importSession(sessionId);
+
+    expect(imported.config.title).toBe("My research session");
   });
 
   test("keeps the rename when a later record carries no usable name", async () => {

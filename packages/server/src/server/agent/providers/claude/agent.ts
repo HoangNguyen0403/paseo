@@ -1697,7 +1697,11 @@ export class ClaudeAgentClient implements AgentClient {
     // survives the import. Only an explicit rename counts: agents are named
     // after their first prompt line since #1563, so adopting the generated
     // `ai-title` here would put that LLM summary back.
-    const renamedTitle = await readClaudeRenamedSessionTitle(input);
+    const renamedTitle = await readClaudeRenamedSessionTitle({
+      cwd: input.cwd,
+      sessionId: input.providerHandleId,
+      configDir: claudeConfigDir(this.buildProviderEnv(context.launchContext?.env)),
+    });
     return importSessionFromPersistence({
       provider: "claude",
       request: input,
@@ -6655,16 +6659,14 @@ function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
 }
 
-async function readClaudeRenamedSessionTitle(
-  input: ImportProviderSessionInput,
-): Promise<string | null> {
-  const projectDir = claudeProjectDirSync(input.cwd);
+async function readClaudeRenamedSessionTitle(input: {
+  cwd: string;
+  sessionId: string;
+  configDir: string;
+}): Promise<string | null> {
   let content: string;
   try {
-    content = await fsPromises.readFile(
-      path.join(projectDir, `${input.providerHandleId}.jsonl`),
-      "utf8",
-    );
+    content = await fsPromises.readFile(claudeTranscriptPathSync(input), "utf8");
   } catch (error) {
     // A session with no transcript on disk has no rename to carry over. Every
     // other read failure is a real fault and stays explicit.
