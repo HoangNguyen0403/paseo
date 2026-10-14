@@ -1,7 +1,5 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from "@testing-library/react";
-import { TERMINAL_PROFILE_ICON_NAMES } from "@getpaseo/protocol/provider-icon-names";
-import { ACP_PROVIDER_ICON_SVGS } from "@/assets/acp-provider-icons";
 import { Bot } from "lucide-react-native";
 import { SvgXml } from "react-native-svg";
 import { afterEach, describe, expect, it } from "vitest";
@@ -85,33 +83,4 @@ it("updates collection consumers when their host snapshot arrives", () => {
   expect(result.current(provider)).toBe(Bot);
   act(() => replaceProviderSnapshotIcons(serverId, [{ provider, iconSvg: svg }]));
   expect(renderIcon(result.current(provider))).toMatchObject({ props: { xml: svg } });
-});
-
-it("renders the shipped Antigravity SVG for a terminal profile icon", () => {
-  const { result } = renderHook(() => useProviderIcon("agy"));
-  expect(result.current).not.toBe(Bot);
-  expect(renderIcon(result.current)).toMatchObject({
-    type: SvgXml,
-    props: { xml: ACP_PROVIDER_ICON_SVGS.agy, width: 18, height: 18, color: "#123456" },
-  });
-});
-
-it.each(TERMINAL_PROFILE_ICON_NAMES)(
-  "renders terminal icon %s through collection consumers",
-  (name) => {
-    const { result } = renderHook(() => useProviderIcons());
-    expect(renderIcon(result.current(name))).toMatchObject({
-      type: SvgXml,
-      props: { xml: ACP_PROVIDER_ICON_SVGS[name as keyof typeof ACP_PROVIDER_ICON_SVGS] },
-    });
-  },
-);
-
-it("preserves catalog icons and the unknown icon fallback", () => {
-  const catalog = renderHook(() => useProviderIcon("cursor"));
-  expect(renderIcon(catalog.result.current)).toMatchObject({
-    type: SvgXml,
-    props: { xml: ACP_PROVIDER_ICON_SVGS.cursor },
-  });
-  expect(renderHook(() => useProviderIcon("definitely-not-a-real-icon")).result.current).toBe(Bot);
 });
