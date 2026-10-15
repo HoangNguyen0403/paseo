@@ -188,6 +188,31 @@ test("auth account claim survives token rotation", async () => {
   });
 });
 
+test("discovery isolates multiple user seats within the same workspace account", async () => {
+  const teamToken = (userId: string, email: string) =>
+    `header.${Buffer.from(
+      JSON.stringify({
+        "https://api.openai.com/auth": {
+          chatgpt_account_id: "team-workspace-id",
+          chatgpt_user_id: userId,
+        },
+        "https://api.openai.com/profile": { email },
+      }),
+    ).toString("base64url")}.signature`;
+
+  await writeAuth(teamToken("user-seat-1", "user1@company.test"));
+  expect(await accountFor(authInput(fixtureHome))).toEqual({
+    key: "user-seat-1.team-workspace-id",
+    label: "user1@company.test",
+  });
+
+  await writeAuth(teamToken("user-seat-2", "user2@company.test"));
+  expect(await accountFor(authInput(fixtureHome))).toEqual({
+    key: "user-seat-2.team-workspace-id",
+    label: "user2@company.test",
+  });
+});
+
 test("discovery reads an email label from auth id_token when access token has no profile", async () => {
   const home = await mkdtemp(join(tmpdir(), "usage-codex-label-"));
   try {

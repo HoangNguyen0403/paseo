@@ -282,11 +282,23 @@ function accountIdentity(auth: Auth, input: CodexUsageInput): { key: string; lab
   const id = jwtClaims(auth.idToken);
   const accessAuth = claimObject(access, "https://api.openai.com/auth");
   const idAuth = claimObject(id, "https://api.openai.com/auth");
-  const key =
+  const accountId =
     auth.accountId ??
     claimString(accessAuth?.["chatgpt_account_id"]) ??
     claimString(access?.["chatgpt_account_id"]) ??
     claimString(idAuth?.["chatgpt_account_id"]);
+  const rawUserId =
+    claimString(accessAuth?.["chatgpt_user_id"]) ??
+    claimString(accessAuth?.["user_id"]) ??
+    claimString(idAuth?.["chatgpt_user_id"]) ??
+    claimString(idAuth?.["user_id"]) ??
+    claimString(access?.["sub"]) ??
+    claimString(id?.["sub"]);
+  const userId = rawUserId?.replace(/[^A-Za-z0-9._-]/g, "_");
+  const key =
+    userId && accountId
+      ? `${userId}.${accountId}`
+      : (accountId ?? userId);
 
   const label =
     claimString(claimObject(access, "https://api.openai.com/profile")?.["email"]) ??
