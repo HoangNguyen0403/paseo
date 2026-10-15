@@ -510,7 +510,12 @@ test("same user seat across Codex and OpenCode harnesses shares one report card"
   await writeFile(
     join(data, "opencode", "auth.json"),
     JSON.stringify({
-      openai: { type: "oauth", access: teamToken("opencode"), accountId: "team-workspace-id", expires: 0 },
+      openai: {
+        type: "oauth",
+        access: teamToken("opencode"),
+        accountId: "team-workspace-id",
+        expires: 0,
+      },
     }),
   );
   const env = { HOME: fixtureHome, CODEX_HOME: fixtureHome, XDG_DATA_HOME: data };
