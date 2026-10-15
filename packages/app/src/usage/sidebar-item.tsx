@@ -178,11 +178,11 @@ function PinnedUsageLine({
   measuring?: boolean;
 }) {
   return sources.map((source, sourceIndex) => (
-    <Fragment key={source.key}>
-      <View
-        style={sourceIndex === 0 ? null : styles.sourceGap}
-        testID={measuring ? undefined : "sidebar-usage-source"}
-      >
+    <View
+      key={source.key}
+      style={[styles.accountCapsule, sourceIndex === 0 ? null : styles.sourceGap]}
+    >
+      <View testID={measuring ? undefined : "sidebar-usage-source"}>
         <UsageSourceIcon svg={source.icon} size={14} />
       </View>
       {source.windows.map((window, windowIndex) => {
@@ -212,7 +212,7 @@ function PinnedUsageLine({
           </Fragment>
         );
       })}
-    </Fragment>
+    </View>
   ));
 }
 
@@ -235,8 +235,15 @@ const styles = StyleSheet.create((theme) => ({
     flex: 1,
     minWidth: 0,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
+    rowGap: theme.spacing[0.5],
+    maxHeight: 52,
     overflow: "hidden",
+  },
+  accountCapsule: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   // Wide enough that nothing inside wraps or shrinks; each child reports its natural width.
   measure: {
