@@ -1997,7 +1997,6 @@ export const AssistantMessage = memo(function AssistantMessage({
   return (
     <View testID="assistant-message" dataSet={revealDataSet} style={assistantContainerStyle}>
       <MarkdownProse
-        streaming={phase === "streaming"}
         kind={markdownKind}
         text={revealedMessage}
         sourceBlocks={markdownProseBlocks ?? [message]}
