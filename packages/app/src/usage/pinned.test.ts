@@ -60,9 +60,8 @@ describe("choosePinnedUsageLayout", () => {
     expect(choosePinnedUsageLayout({ ...widths, available: 239 })).toBe("labels");
   });
 
-  it("keeps labels when fitting across 2 lines, drops when exceeding 2 lines", () => {
-    expect(choosePinnedUsageLayout({ ...widths, available: 100 })).toBe("labels");
-    expect(choosePinnedUsageLayout({ ...widths, available: 99 })).toBe("percents");
+  it("drops the labels before it lets the line overflow", () => {
+    expect(choosePinnedUsageLayout({ ...widths, available: 199 })).toBe("percents");
   });
 
   it("shows labels until the widths are measured", () => {

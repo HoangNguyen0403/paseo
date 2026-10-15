@@ -46,8 +46,7 @@ export function choosePinnedUsageLayout(input: {
   const { available, labelsWidth, percentsWidth, windowCount } = input;
   if (available === null || labelsWidth === null || percentsWidth === null) return "labels";
   if (labelsWidth + windowCount * (MIN_METER_WIDTH + METER_GAP) <= available) return "meters";
-  // Allow labels across up to 2 wrapped lines before dropping to percents
-  if (labelsWidth <= available * 2) return "labels";
+  if (labelsWidth <= available) return "labels";
   return percentsWidth < labelsWidth ? "percents" : "labels";
 }
 
