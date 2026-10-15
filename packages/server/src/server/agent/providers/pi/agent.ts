@@ -1,3 +1,4 @@
+import { mapCustomMessageToToolCall } from "../custom-message.js";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -1004,6 +1005,8 @@ function isProcessExitEvent(
 
 function isPiAgentSessionEvent(event: PiRuntimeEvent): event is PiAgentSessionEvent {
   switch (event.type) {
+    case "thinking_level_changed":
+      return typeof event.level === "string" && normalizePiThinkingOption(event.level) !== null;
     case "agent_start":
     case "turn_start":
     case "message_start":
@@ -2135,6 +2138,15 @@ export class PiRpcAgentSession implements AgentSession {
     }
 
     switch (event.type) {
+      case "thinking_level_changed":
+        this.state = { ...this.state, thinkingLevel: event.level };
+        this.config.thinkingOptionId = event.level;
+        this.emit({
+          type: "thinking_option_changed",
+          provider: this.provider,
+          thinkingOptionId: event.level,
+        });
+        return;
       case "agent_start":
         this.activeTurnStarted = true;
         this.clearNoTurnBuffers();
@@ -2368,12 +2380,16 @@ export class PiRpcAgentSession implements AgentSession {
       const customMapping = this.extensionHost.mapCustomMessage(event.message);
       this.emitExtensionOutput(customMapping, turnId);
       const text = getUserMessageText(event.message.content);
-      if (text) {
+      if (event.message.display !== false && text) {
         this.emit({
           type: "timeline",
           provider: this.provider,
           turnId,
-          item: { type: "assistant_message", text },
+          item: mapCustomMessageToToolCall(
+            event.message,
+            text,
+            `${this.provider}-custom-${randomUUID()}`,
+          ),
         });
       }
       if (!this.activeTurnStarted) {

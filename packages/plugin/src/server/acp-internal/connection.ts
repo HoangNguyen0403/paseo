@@ -1,4 +1,5 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawnProcess, terminateProcess } from "../process.js";
 import { Readable, Writable } from "node:stream";
 import {
   ClientSideConnection,
@@ -358,8 +359,6 @@ class AcpRuntime {
   private emit: (event: ProviderEvent) => void;
   private readonly messages = new Map<string, string>();
   private readonly toolCalls = new Map<string, AcpToolCallSnapshot>();
-  // Running tool rows published by transformers; the turn's terminal closes any left open.
-  private readonly vendorToolCalls = new Map<string, ToolCallTimelineItem>();
   private readonly pendingCompactions = new Set<string>();
   private readonly permissions = new Map<
     string,
@@ -402,9 +401,9 @@ class AcpRuntime {
         args: options.options.command.slice(1),
         env: process.env,
       };
-      child = spawn(launch.command, launch.args, {
+      child = spawnProcess(launch.command, launch.args, {
         env: { ...launch.env, ...options.env },
-        stdio: ["pipe", "pipe", "pipe"],
+        stdio: "pipe",
       });
       spawnFailure = new Promise<never>((_resolve, reject) => child!.once("error", reject));
       child.stderr.on("data", () => undefined);
@@ -596,13 +595,10 @@ class AcpRuntime {
       turnId,
       state: "started",
     });
-    // The SDK dispatches notifications without awaiting them, so the prompt response can resolve
-    // while earlier session updates are still queued. Apply them before the turn ends.
     const settled = this.call(
       this.connection.prompt({ sessionId: this.nativeSessionId, prompt }),
     ).then(
-      async (response): Promise<void> => {
-        await this.drainNotifications();
+      (response): void => {
         const state = response.stopReason === "cancelled" ? "canceled" : "completed";
         this.fallbackChunkIds.clear();
         this.terminalizeTransientItems(state);
@@ -614,8 +610,7 @@ class AcpRuntime {
         });
         return undefined;
       },
-      async (error): Promise<void> => {
-        await this.drainNotifications();
+      (error): void => {
         this.fallbackChunkIds.clear();
         this.terminalizeTransientItems("failed");
         this.emit({
@@ -740,9 +735,9 @@ class AcpRuntime {
     if (!child || this.processFailed) return;
     if (child.exitCode !== null || child.signalCode !== null) return;
     const closed = new Promise<void>((resolve) => child.once("close", () => resolve()));
-    child.kill("SIGTERM");
+    await terminateProcess(child, "SIGTERM");
     if (await settlesWithin(closed, 1_000)) return;
-    child.kill("SIGKILL");
+    await terminateProcess(child);
     if (!(await settlesWithin(closed, 1_000))) {
       throw new Error(`ACP provider ${this.options.options.id} did not terminate after SIGKILL`);
     }
@@ -1032,17 +1027,9 @@ class AcpRuntime {
       this.emit({
         type: "timeline.item",
         sessionId: this.options.boundarySessionId,
-        item: terminalToolItem(toolTimelineItem(snapshot), state),
+        item: toolTimelineItem(completed),
       });
     }
-    for (const item of this.vendorToolCalls.values()) {
-      this.emit({
-        type: "timeline.item",
-        sessionId: this.options.boundarySessionId,
-        item: terminalToolItem(item, state),
-      });
-    }
-    this.vendorToolCalls.clear();
     for (const id of this.pendingCompactions) {
       this.emit({
         type: "timeline.item",
@@ -1089,10 +1076,6 @@ class AcpRuntime {
       if (this.configTransaction) this.stagedTransformerConfig = update.config;
       else this.emitConfigSnapshot(update.config);
     } else if (update.type === "timeline") {
-      if (update.item.type === "tool_call") {
-        if (update.item.status === "running") this.vendorToolCalls.set(update.item.id, update.item);
-        else this.vendorToolCalls.delete(update.item.id);
-      }
       this.emit({
         type: "timeline.item",
         sessionId: this.options.boundarySessionId,
@@ -1400,9 +1383,7 @@ function configValues(
   return Object.fromEntries(options.map((option) => [option.id, option.currentValue]));
 }
 
-type ToolCallTimelineItem = Extract<ProviderTimelineItem, { type: "tool_call" }>;
-
-function toolTimelineItem(snapshot: AcpToolCallSnapshot): ToolCallTimelineItem {
+function toolTimelineItem(snapshot: AcpToolCallSnapshot): ProviderTimelineItem {
   const input = jsonRecord(snapshot.input);
   const isEdit = snapshot.kind === "edit" || snapshot.name?.toLowerCase().includes("edit") === true;
   const detail = isEdit
@@ -1428,18 +1409,6 @@ function toolTimelineItem(snapshot: AcpToolCallSnapshot): ToolCallTimelineItem {
   };
   if (status === "failed") return { ...base, status, error: snapshot.output };
   return { ...base, status, error: null };
-}
-
-// A row the turn left open ends with the turn. The wire contract requires a non-null error on a
-// failed tool call, so a canceled turn cancels its rows instead of failing them.
-function terminalToolItem(
-  item: ToolCallTimelineItem,
-  state: "completed" | "failed" | "canceled",
-): ToolCallTimelineItem {
-  if (state === "failed") {
-    return { ...item, status: "failed", error: item.error ?? { message: "Turn failed" } };
-  }
-  return { ...item, status: state, error: null };
 }
 
 function jsonValue(value: unknown) {

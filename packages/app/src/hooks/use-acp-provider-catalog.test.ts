@@ -66,6 +66,20 @@ describe("ACP provider catalog", () => {
       command: ["hoplite", "acp"],
       installLink: "https://hoplite.sh/docs/cli/acp",
     });
+    expect(buildAcpProviderConfigPatch(findProvider("hoplite"))).toEqual({
+      providers: {
+        hoplite: {
+          extends: "acp",
+          label: "Hoplite",
+          description: "Cloud coding agent through the local hoplite acp bridge",
+          command: ["hoplite", "acp"],
+          env: {},
+        },
+      },
+    });
+    const ids = getAcpProviderCatalog().map((entry) => entry.id);
+    expect(ids.indexOf("hermes")).toBeLessThan(ids.indexOf("hoplite"));
+    expect(ids.indexOf("hoplite")).toBeLessThan(ids.indexOf("junie"));
     expect(findProvider("hoplite").iconSvg).toContain('fill="currentColor"');
   });
 

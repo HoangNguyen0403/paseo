@@ -20,7 +20,6 @@ Work out of the box once the underlying CLI is installed and authenticated.
 - [Pi](https://pi.dev). Minimal terminal-based coding agent with multi-provider LLM support.
 - [Antigravity](#antigravity). Uses your installed `agy` CLI through a built-in provider plugin.
 - [Muse Code](/docs/muse-code). Meta's terminal coding agent, bundled as a provider plugin.
-- [Hoplite](#hoplite). Uses your installed `hoplite` CLI through a built-in provider plugin.
 
 ### Antigravity
 
@@ -59,37 +58,6 @@ for provider-specific environment variables:
 
 See [Custom providers](/docs/custom-providers) for command and environment overrides.
 
-### Hoplite
-
-Install the Hoplite CLI on your daemon host with `brew install carboncopyinc/tap/hoplite`, then run
-`hoplite login`. Pick **Hoplite** in Paseo. The provider ships with Paseo and talks to Hoplite
-through `hoplite acp`; no separate plugin install is required.
-
-Hoplite runs the agent in a cloud workspace for a Hoplite project. The project comes from the
-GitHub repository of the agent's directory, so open a repository that is linked to a Hoplite
-project. In any other directory Hoplite reports `No Hoplite project`, and the Hoplite row in
-**Settings → Providers** shows that error for the daemon's own directory. To use one project
-everywhere, set its ID:
-
-```json
-{
-  "agents": {
-    "providers": {
-      "hoplite": {
-        "env": { "HOPLITE_PROJECT_ID": "your-project-id" }
-      }
-    }
-  }
-}
-```
-
-Models come from your Hoplite organization. While Hoplite prepares the workspace, the chat shows
-one **Hoplite workspace** row with the current step. Conversations resume after a daemon restart.
-Paseo MCP tools are unavailable because the agent runs in Hoplite's workspace, not on your host;
-Hoplite's own tools, including its subagents, still work.
-
-Override `command` if `hoplite` is outside your daemon's PATH. Keep `acp` in the arguments.
-
 ## ACP catalog
 
 Pick any of these from the in-app provider catalog. Each entry is a one-click install of the underlying CLI.
@@ -117,6 +85,7 @@ Pick any of these from the in-app provider catalog. Each entry is a one-click in
 - [goose](https://block.github.io/goose/), Block's local open-source AI agent.
 - [Grok](https://docs.x.ai/build/overview), xAI's Grok Build agentic coding CLI.
 - [Hermes Agent](https://hermes-agent.nousresearch.com/docs/user-guide/features/acp), Nous Research's self-improving agent.
+- [Hoplite](#hoplite), cloud coding agent through its local ACP bridge.
 - [Junie](https://junie.jetbrains.com/docs/junie-cli-acp.html), JetBrains' coding agent.
 - [Kilo Code](https://kilo.ai/docs/code-with-ai/platforms/cli), open-source coding agent.
 - [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code), Moonshot AI's coding assistant.
@@ -132,3 +101,18 @@ Pick any of these from the in-app provider catalog. Each entry is a one-click in
 - [VT Code](https://github.com/vinhnx/VTCode/blob/main/docs/guides/zed-acp.md), open-source multi-provider coding agent.
 
 The in-app catalog is the canonical, version-pinned source. Anything not listed here can still be added manually, see [Custom providers](/docs/custom-providers).
+
+### Hoplite
+
+Install the [Hoplite CLI](https://hoplite.sh/docs/cli) on your daemon host and run
+`hoplite login`. In **Settings → Hosts → your host → Providers**, find **Hoplite**
+in the catalog and choose **Add**. Paseo launches `hoplite acp` through the generic ACP adapter.
+
+Hoplite runs the agent in a cloud workspace. Open a repository linked to a Hoplite project,
+or set `agents.providers.hoplite.env.HOPLITE_PROJECT_ID` to use one project everywhere.
+Without a linked repository or pinned project, discovery reports `No Hoplite project`.
+Your local files and Paseo's loopback MCP tools are not available in that cloud workspace.
+
+See [Hoplite's ACP guide](https://hoplite.sh/docs/cli/acp) for authentication and project setup.
+Use a [command override](/docs/custom-providers) if `hoplite` is outside your daemon's PATH;
+keep `acp` in the arguments.
