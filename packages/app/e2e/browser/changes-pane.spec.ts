@@ -832,14 +832,19 @@ test("compact Changes keeps its actions compact and menu-only", async ({ page })
   await useUnwrappedDiffLines(page);
   await openWorkspaceChanges(page, workspace);
   await page.setViewportSize({ width: 480, height: 900 });
+  // The shell survives the breakpoint, so the wide Explorer can still be on screen right after the
+  // resize. Check for the compact tab only once the shell reports the compact layout.
+  await expect(page.getByTestId("compact-shell")).toBeVisible();
 
-  const compactChangesTab = page.getByTestId("explorer-tab-changes").filter({ visible: true });
+  const compactChangesTab = page
+    .getByTestId("workspace-tab-changes_tree")
+    .filter({ visible: true });
   if (!(await compactChangesTab.isVisible())) {
     await page.getByTestId("workspace-explorer-toggle").first().click();
   }
   await expect(compactChangesTab).toBeVisible();
   await compactChangesTab.click();
-  const compactExplorer = page.getByTestId("explorer-content-area").filter({ visible: true });
+  const compactExplorer = page.getByTestId("workspace-explorer-sidebar").filter({ visible: true });
   await expect(compactExplorer.getByTestId("changes-header")).toBeVisible();
 
   const actions = compactExplorer.getByTestId("changes-actions-menu-trigger");
@@ -874,6 +879,27 @@ test("compact Changes keeps its actions compact and menu-only", async ({ page })
   await expect(
     page.getByTestId("changes-options-menu-content").getByTestId("changes-toggle-wrap-lines"),
   ).toContainText("Scroll long lines");
+});
+
+test("compact Explorer renders inline hunks with a saved tree-only desktop preference", async ({
+  page,
+}) => {
+  const workspace = await createWorkspaceWithMountedTabDiff();
+  await page.addInitScript(
+    ({ key }) => {
+      localStorage.setItem(key, JSON.stringify({ inlineDiff: false, layout: "split" }));
+    },
+    { key: CHANGES_PREFERENCES_KEY },
+  );
+  const explorer = await openCompactChanges(page, workspace);
+  await expect(explorer.getByTestId("git-diff-canvas")).toBeVisible();
+  await expect(explorer.getByTestId("diff-file-0-toggle")).toBeVisible();
+  await explorer.getByTestId("diff-file-0-toggle").click({ button: "right" });
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByTestId("diff-file-0-revert").click();
+  await expect
+    .poll(() => readFile(path.join(workspace.repoPath, "src/use-mounted-tab-set.ts"), "utf8"))
+    .toBe(BEFORE);
 });
 
 test("compact Changes jumps to a file from the changed-files sheet", async ({ page }) => {
@@ -1674,10 +1700,10 @@ async function openCompactChanges(page: Page, workspace: DirtyWorkspace): Promis
   await page.goto(buildHostWorkspaceRoute(getServerId(), workspace.id));
   await page.reload();
   await page.getByTestId("workspace-explorer-toggle").first().click();
-  const changesTab = page.getByTestId("explorer-tab-changes").filter({ visible: true });
+  const changesTab = page.getByTestId("workspace-tab-changes_tree").filter({ visible: true });
   await expect(changesTab).toBeVisible({ timeout: 30_000 });
   await changesTab.click();
-  const explorer = page.getByTestId("explorer-content-area").filter({ visible: true });
+  const explorer = page.getByTestId("workspace-explorer-sidebar").filter({ visible: true });
   await expect(explorer.getByTestId("changes-header")).toBeVisible({ timeout: 30_000 });
   return explorer;
 }
@@ -1821,9 +1847,14 @@ async function changeCodeTypographyFromSettings(
   await page.getByTestId("sidebar-settings").click();
   await expect(page).toHaveURL(new RegExp(`${buildSettingsSectionRoute("general")}|/settings$`));
   await page.getByRole("button", { name: "Appearance" }).click();
+  // A committed font change remounts the screen (AppearanceStyleBoundary), and the new form starts
+  // from the stored size. Edit the size only in the remounted form, or the remount drops it.
+  const sizeField = page.getByLabel("Code font size");
+  await sizeField.evaluate((field) => field.setAttribute("data-e2e-before-font-family", ""));
   await page.getByLabel("Code font family").fill(typography.fontFamily);
   await page.getByLabel("Code font family").press("Enter");
-  await page.getByLabel("Code font size").fill(String(typography.fontSize));
+  await expect(page.locator("[data-e2e-before-font-family]")).toHaveCount(0);
+  await sizeField.fill(String(typography.fontSize));
   await page.getByLabel("Code font size").press("Enter");
   await expect(page.getByLabel("Code font family")).toHaveValue(typography.fontFamily);
   await expect(page.getByLabel("Code font size")).toHaveValue(String(typography.fontSize));
